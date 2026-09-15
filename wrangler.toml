@@ -1,0 +1,50 @@
+name = "mabills"
+main = "worker/index.ts"
+compatibility_date = "2025-01-01"
+
+# ---------------------------------------------------------------------------
+# Assets estaticos (build do Vite) servidos pela MESMA origem da API.
+# Isso elimina CORS e permite cookie de sessao SameSite=Strict.
+#
+# run_worker_first: sem isso o SPA fallback engoliria /api/* e a API
+# nunca seria chamada.
+# ---------------------------------------------------------------------------
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "mabills"
+# Criado por: wrangler d1 create mabills
+database_id = "eef212b0-8251-486d-ba6a-ffcea01501ee"
+
+[[kv_namespaces]]
+binding = "CACHE"
+# Criado por: wrangler kv namespace create CACHE
+id = "4cccb93249024b0b9f314cff10ce6e04"
+
+# Sincronizacao diaria com o Pluggy.
+# Cron roda em UTC: 09:00 UTC = 06:00 no horario de Brasilia.
+[triggers]
+crons = ["0 9 * * *"]
+
+[vars]
+TZ_OFFSET_HOURS = "-3"
+
+# ---------------------------------------------------------------------------
+# Secrets (NUNCA neste arquivo - use `wrangler secret put <NOME>`):
+#   PLUGGY_CLIENT_ID
+#   PLUGGY_CLIENT_SECRET
+#   PLUGGY_ITEM_IDS      (separados por virgula)
+#   SESSION_SECRET       (gere com: npm run secret)
+#   APP_PIN_HASH         (gere com: npm run pin)
+#   VAPID_PUBLIC_KEY     (gere com: npm run vapid)
+#   VAPID_PRIVATE_KEY    (idem - o mesmo comando imprime o par)
+#   VAPID_SUBJECT        (mailto:voce@exemplo.com)
+# ---------------------------------------------------------------------------
+
+[observability]
+enabled = true

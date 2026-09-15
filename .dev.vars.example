@@ -1,0 +1,19 @@
+# Copie este arquivo para .dev.vars (que esta no .gitignore) para rodar local.
+# Em producao NAO use este arquivo: use `wrangler secret put <NOME>`.
+
+# Obrigatorios
+SESSION_SECRET="gere com: npm run secret"
+APP_PIN_HASH="gere com: npm run pin"
+
+# Opcionais - sem eles o app funciona com importacao de extrato e lancamento manual.
+# Obtidos em dashboard.pluggy.ai apos conectar as contas em meu.pluggy.ai
+PLUGGY_CLIENT_ID=""
+PLUGGY_CLIENT_SECRET=""
+PLUGGY_ITEM_IDS=""
+
+# Opcionais - sem eles o app funciona, so nao envia alerta de gasto.
+# Gere o par com: npm run vapid
+VAPID_PUBLIC_KEY=""
+VAPID_PRIVATE_KEY=""
+# Contato exigido pelo padrao VAPID. Use o seu e-mail.
+VAPID_SUBJECT="mailto:voce@exemplo.com"

@@ -1,0 +1,48 @@
+{
+  "name": "mabills",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Gestao financeira pessoal - PWA + Cloudflare Workers + Pluggy",
+  "scripts": {
+    "dev": "concurrently -n web,api -c cyan,magenta \"vite\" \"wrangler dev\"",
+    "dev:web": "vite",
+    "dev:api": "wrangler dev",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "npm run build && wrangler dev",
+    "deploy": "npm run build && wrangler deploy",
+    "db:init": "wrangler d1 execute mabills --local --file=./schema/0001_init.sql && wrangler d1 execute mabills --local --file=./schema/0002_seed_categories.sql && wrangler d1 execute mabills --local --file=./schema/0003_push.sql",
+    "db:init:remote": "wrangler d1 execute mabills --remote --file=./schema/0001_init.sql && wrangler d1 execute mabills --remote --file=./schema/0002_seed_categories.sql && wrangler d1 execute mabills --remote --file=./schema/0003_push.sql",
+    "db:reset": "wrangler d1 execute mabills --local --file=./schema/9999_drop_all.sql && npm run db:init",
+    "pin": "node scripts/hash-pin.mjs",
+    "secret": "node scripts/gen-secret.mjs",
+    "vapid": "node scripts/gen-vapid.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "smoke": "node scripts/smoke-test.mjs",
+    "test:push": "node --experimental-strip-types --no-warnings scripts/test-push-crypto.mjs"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.62.0",
+    "hono": "^4.6.14",
+    "idb-keyval": "^6.2.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "recharts": "^2.15.0",
+    "wouter": "^3.3.5"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260804.1",
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7",
+    "vite-plugin-pwa": "^0.21.1",
+    "wrangler": "^4.119.0"
+  }
+}
