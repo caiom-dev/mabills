@@ -296,10 +296,35 @@ export interface CreateRuleRequest {
   priority?: number
 }
 
+/**
+ * Somas do filtro atual.
+ *
+ * A listagem sempre devolveu apenas a CONTAGEM de lançamentos. Para auditar uma
+ * categoria isso não basta: a pergunta é quanto saiu, e principalmente quanto
+ * do que saiu não aparece no total do mês.
+ */
+export interface TransactionTotals {
+  /** Soma das saídas do filtro, incluindo o que não conta no mês. */
+  spent: number
+  /** Soma das entradas do filtro. */
+  income: number
+  /**
+   * Parte de `spent` que o resumo do mês NÃO soma: lançamento marcado como
+   * ignorado, ou de categoria do tipo transferência.
+   *
+   * É o número que explica a diferença entre "o que saiu da conta" e "o que o
+   * app chama de gasto" — sem ele, a divergência parece erro de conta.
+   */
+  outOfMonthTotal: number
+  /** Quantos lançamentos do filtro estão fora do total do mês. */
+  outOfMonthCount: number
+}
+
 export interface TransactionListResponse {
   items: Transaction[]
   total: number
   hasMore: boolean
+  totals: TransactionTotals
 }
 
 export interface ApiError {

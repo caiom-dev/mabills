@@ -130,6 +130,9 @@ export const api = {
 
   summary: (month: string) => apiFetch<MonthSummary>(`/summary${toQuery({ month })}`),
   breakdown: (month: string) => apiFetch<CategoryBreakdown[]>(`/breakdown${toQuery({ month })}`),
+  /** O espelho: o que ficou de fora do total do mês (transferências e ignorados). */
+  breakdownOutOfMonth: (month: string) =>
+    apiFetch<CategoryBreakdown[]>(`/breakdown${toQuery({ month, scope: 'out' })}`),
   trends: (months: number) => apiFetch<MonthTrend[]>(`/trends${toQuery({ months })}`),
 
   transactions: (filters: TransactionFilters) =>

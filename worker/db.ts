@@ -45,6 +45,25 @@ const BATCH_CHUNK = 50
 export const MANUAL_ACCOUNT_ID = 'manual'
 export const IMPORTED_ACCOUNT_ID = 'imported'
 
+/**
+ * O que conta como "sem categoria" para efeito de revisao.
+ *
+ * Inclui 'Outros' de proposito: o categorizador usa essa categoria como balde
+ * de fallback quando nenhuma regra casa, entao um lancamento em 'Outros' e
+ * exatamente um lancamento que ainda espera a sua decisao. So 'category_id IS
+ * NULL' quase nunca acontece na pratica.
+ *
+ * Fica aqui, e nao repetida em cada rota, porque ja divergiu uma vez em
+ * producao: o resumo CONTAVA com 'Outros' e a listagem FILTRAVA sem - o app
+ * anunciava "35 lancamentos sem categoria" e, ao tocar, entregava lista vazia.
+ * Duas copias da mesma regra e uma so ser corrigida foi o bug.
+ *
+ * Usa subconsulta em vez de juncao porque o COUNT da listagem varre
+ * a tabela de transacoes sozinha, sem juntar categories.
+ */
+export const UNCATEGORIZED_CONDITION =
+  "(t.category_id IS NULL OR t.category_id = (SELECT id FROM categories WHERE name = 'Outros'))"
+
 // ---------------------------------------------------------------------------
 // Coercao de tipos vindos do SQLite
 // ---------------------------------------------------------------------------

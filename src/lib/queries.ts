@@ -32,6 +32,7 @@ export const keys = {
   auth: ['auth'] as const,
   summary: (month: string) => ['summary', month] as const,
   breakdown: (month: string) => ['breakdown', month] as const,
+  breakdownOut: (month: string) => ['breakdown', month, 'out'] as const,
   trends: (months: number) => ['trends', months] as const,
   transactions: (filters: TransactionFilters) => ['transactions', filters] as const,
   categories: ['categories'] as const,
@@ -83,6 +84,15 @@ export function useBreakdown(month: string) {
   return useQuery({
     queryKey: keys.breakdown(month),
     queryFn: () => api.breakdown(month),
+    placeholderData: (previous) => previous,
+  })
+}
+
+/** Categorias que o total do mês não soma. Ver [[breakdown]] com scope=out. */
+export function useBreakdownOutOfMonth(month: string) {
+  return useQuery({
+    queryKey: keys.breakdownOut(month),
+    queryFn: () => api.breakdownOutOfMonth(month),
     placeholderData: (previous) => previous,
   })
 }

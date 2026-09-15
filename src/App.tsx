@@ -61,7 +61,10 @@ function OfflineBanner() {
   return (
     <div
       role="status"
-      className="sticky top-0 z-40 bg-[var(--status-warning)] px-4 py-1.5 text-center text-xs font-medium text-[#0b0b0b]"
+      className="sticky z-40 bg-[var(--status-warning)] px-4 py-1.5 text-center text-xs font-medium text-[#0b0b0b]"
+      /* Gruda ABAIXO do notch, não em top:0 - o body já recuou o conteúdo, e
+         top:0 mandaria a faixa de volta para trás da ilha ao rolar. */
+      style={{ top: 'var(--safe-top)' }}
     >
       Sem conexão — mostrando os últimos dados salvos
     </div>

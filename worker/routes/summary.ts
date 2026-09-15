@@ -24,7 +24,7 @@ import { round2 } from '@shared/money'
 
 import { BUDGET_WARN_THRESHOLD } from '../types'
 import { json, badRequest, parseMonthParam, type AppEnv } from '../http'
-import { rowToTransaction } from '../db'
+import { rowToTransaction, UNCATEGORIZED_CONDITION } from '../db'
 
 const MONTH_HELP = "Parâmetro 'month' inválido. Use o formato AAAA-MM (ex.: 2026-08)."
 
@@ -44,6 +44,22 @@ const PACE_TOLERANCE = 0.1
 // ---------------------------------------------------------------------------
 // Consultas
 // ---------------------------------------------------------------------------
+
+/**
+ * Transferencia nao e gasto nem renda - o dinheiro continua sendo seu.
+ *
+ * Sem este filtro, pagar a fatura do cartao entra como despesa DE NOVO (as
+ * compras ja foram lancadas uma a uma), aplicar no cofrinho vira "gasto" e
+ * resgatar vira "renda". Numa conta comum isso infla o total do mes em
+ * milhares de reais e o numero da tela inicial deixa de significar algo.
+ *
+ * O teto por categoria ja filtrava kind='expense'; o total, o detalhamento e a
+ * tendencia nao filtravam - e as duas telas discordavam entre si.
+ *
+ * COALESCE: lancamento sem categoria conta como despesa, que e o padrao certo
+ * para algo ainda nao classificado.
+ */
+const NOT_TRANSFER = "COALESCE(c.kind, 'expense') <> 'transfer'"
 
 /**
  * COALESCE(teto do mes, teto '*'): o usuario configura o teto padrao uma vez e
@@ -73,10 +89,10 @@ const TOTALS_SQL = `
   SELECT
     COALESCE(SUM(CASE WHEN t.amount < 0 AND t.is_ignored = 0 THEN -t.amount ELSE 0 END), 0) AS total_spent,
     COALESCE(SUM(CASE WHEN t.amount > 0 AND t.is_ignored = 0 THEN t.amount ELSE 0 END), 0) AS total_income,
-    COALESCE(SUM(CASE WHEN t.category_id IS NULL OR c.name = 'Outros' THEN 1 ELSE 0 END), 0) AS uncategorized
+    COALESCE(SUM(CASE WHEN ${UNCATEGORIZED_CONDITION} THEN 1 ELSE 0 END), 0) AS uncategorized
   FROM transactions t
   LEFT JOIN categories c ON c.id = t.category_id
-  WHERE t.date >= ?1 AND t.date <= ?2
+  WHERE t.date >= ?1 AND t.date <= ?2 AND ${NOT_TRANSFER}
 `
 
 const RECENT_SQL = `
@@ -105,6 +121,31 @@ const BREAKDOWN_SQL = `
   FROM transactions t
   LEFT JOIN categories c ON c.id = t.category_id
   WHERE t.date >= ?1 AND t.date <= ?2 AND t.amount < 0 AND t.is_ignored = 0
+    AND ${NOT_TRANSFER}
+  GROUP BY t.category_id
+  ORDER BY spent DESC
+`
+
+/**
+ * O que NAO entra no total do mes, por categoria.
+ *
+ * Existe porque a exclusao de transferencias do total - correta - tambem tirou
+ * essas linhas de todas as telas de analise. Pagamento de fatura, aplicacao e
+ * lancamento marcado como ignorado sumiram da visao junto com o problema que
+ * causavam, e nao havia mais como auditar para onde aquele dinheiro foi.
+ *
+ * O espelho de BREAKDOWN_SQL: mesma forma, condicao invertida.
+ */
+const OUT_OF_MONTH_SQL = `
+  SELECT t.category_id AS category_id,
+         COALESCE(c.name, 'Sem categoria') AS category_name,
+         COALESCE(c.color_slot, 0) AS color_slot,
+         SUM(-t.amount) AS spent,
+         COUNT(*) AS tx_count
+  FROM transactions t
+  LEFT JOIN categories c ON c.id = t.category_id
+  WHERE t.date >= ?1 AND t.date <= ?2 AND t.amount < 0
+    AND (t.is_ignored = 1 OR COALESCE(c.kind, 'expense') = 'transfer')
   GROUP BY t.category_id
   ORDER BY spent DESC
 `
@@ -118,7 +159,9 @@ const TRENDS_SQL = `
          t.category_id AS category_id,
          SUM(-t.amount) AS spent
   FROM transactions t
+  LEFT JOIN categories c ON c.id = t.category_id
   WHERE t.date >= ?1 AND t.date <= ?2 AND t.amount < 0 AND t.is_ignored = 0
+    AND ${NOT_TRANSFER}
   GROUP BY month, t.category_id
   ORDER BY month, spent DESC
 `
@@ -334,8 +377,13 @@ summaryRoutes.get('/breakdown', async (c) => {
   const month = parseMonthParam(c)
   if (!month || !isValidMonth(month)) return badRequest(MONTH_HELP)
 
+  // ?scope=out devolve o espelho: o que ficou de FORA do total do mes.
+  const outOfMonth = c.req.query('scope') === 'out'
+
   const { from, to } = monthBounds(month)
-  const { results } = await c.env.DB.prepare(BREAKDOWN_SQL).bind(from, to).all<BreakdownRow>()
+  const { results } = await c.env.DB.prepare(outOfMonth ? OUT_OF_MONTH_SQL : BREAKDOWN_SQL)
+    .bind(from, to)
+    .all<BreakdownRow>()
 
   let total = 0
   for (const row of results) total += row.spent

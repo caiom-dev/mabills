@@ -5,7 +5,6 @@ import { formatBRL } from '@shared/money'
 import { api } from '@/lib/api'
 import {
   useCategories,
-  useCreateCategory,
   useDeleteCategory,
   useDeleteRule,
   useDisablePush,
@@ -21,6 +20,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 import Card from '@/components/Card'
 import CategoryDot from '@/components/CategoryDot'
+import CategoryForm from '@/components/CategoryForm'
 import Skeleton from '@/components/Skeleton'
 
 export default function Settings() {
@@ -390,10 +390,7 @@ function RulesSection() {
 
 function CategoriesSection() {
   const categories = useCategories()
-  const create = useCreateCategory()
   const remove = useDeleteCategory()
-  const [name, setName] = useState('')
-  const [slot, setSlot] = useState(1)
 
   return (
     <Card title="Categorias">
@@ -421,49 +418,11 @@ function CategoriesSection() {
         ))}
       </ul>
 
+      {/* Mesmo formulário da tela Categorias e do seletor de lançamento.
+          A versão que vivia aqui só criava despesa — não havia como criar uma
+          categoria de transferência pelo app. */}
       <div className="rounded-xl bg-[var(--page)] p-3">
-        <input
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          placeholder="Nova categoria"
-          aria-label="Nome da nova categoria"
-          className="min-h-11 w-full rounded-lg bg-[var(--surface)] px-3 text-sm ring-1 ring-[var(--border)] outline-none focus:ring-2 focus:ring-[var(--cat-1)]"
-        />
-
-        {/* So os 8 slots validados. Um 9o matiz gerado seria indistinguivel dos
-            existentes sob daltonismo. */}
-        <div className="mt-2 flex flex-wrap gap-2">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => setSlot(option)}
-              aria-label={`Cor ${option}`}
-              aria-pressed={slot === option}
-              className={`h-9 w-9 rounded-full ${
-                slot === option ? 'ring-2 ring-[var(--text-primary)] ring-offset-2 ring-offset-[var(--page)]' : ''
-              }`}
-              style={{ background: `var(--cat-${option})` }}
-            />
-          ))}
-        </div>
-
-        <button
-          type="button"
-          disabled={!name.trim() || create.isPending}
-          onClick={() =>
-            create.mutate(
-              { name: name.trim(), kind: 'expense', colorSlot: slot },
-              { onSuccess: () => setName('') },
-            )
-          }
-          className="mt-3 min-h-11 w-full rounded-xl bg-[var(--cat-1)] text-sm font-medium text-white disabled:opacity-45"
-        >
-          Criar categoria
-        </button>
-        {create.error && (
-          <p className="mt-2 text-sm text-[var(--status-critical)]">{create.error.message}</p>
-        )}
+        <CategoryForm />
       </div>
     </Card>
   )

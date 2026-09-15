@@ -167,7 +167,7 @@ function BudgetRow({
             inputMode="decimal"
             placeholder="—"
             aria-label={`Teto para ${name}`}
-            className="min-h-11 w-24 rounded-xl bg-[var(--page)] px-3 text-right text-sm tabular ring-1 ring-[var(--border)] outline-none focus:ring-2 focus:ring-[var(--cat-1)]"
+            className="min-h-11 w-24 rounded-xl bg-[var(--page)] px-3 text-right text-base tabular ring-1 ring-[var(--border)] outline-none focus:ring-2 focus:ring-[var(--cat-1)]"
           />
         </span>
       </div>

@@ -26,7 +26,7 @@ import type {
 import { isValidDate, isValidMonth, monthBounds } from '@shared/dates'
 import { round2 } from '@shared/money'
 import { apiError, badRequest, json, type AppEnv } from '../http'
-import { ensureLocalAccount, rowToTransaction } from '../db'
+import { ensureLocalAccount, rowToTransaction, UNCATEGORIZED_CONDITION } from '../db'
 import {
   applyRuleBackfill,
   categorizeTransaction,
@@ -102,19 +102,36 @@ transactionRoutes.get('/transactions', async (c) => {
   }
 
   if (isTrue(c.req.query('uncategorized'))) {
-    conditions.push('t.category_id IS NULL')
+    conditions.push(UNCATEGORIZED_CONDITION)
   }
 
   const limit = clampInt(c.req.query('limit'), DEFAULT_LIMIT, 1, MAX_LIMIT)
   const offset = clampInt(c.req.query('offset'), 0, 0, 1_000_000)
   const whereSql = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
+  /*
+   * Contagem e somas na MESMA varredura.
+   *
+   * O LEFT JOIN em categories existe por causa do `kind`: é ele que diz se o
+   * lançamento é transferência e, portanto, se fica fora do total do mês. O
+   * whereSql continua válido porque só referencia o alias `t`.
+   */
   const totalRow = await prepare(
     db,
-    `SELECT COUNT(*) AS total FROM transactions t ${whereSql}`,
+    `SELECT
+       COUNT(*) AS total,
+       COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) AS spent,
+       COALESCE(SUM(CASE WHEN t.amount > 0 THEN t.amount ELSE 0 END), 0) AS income,
+       COALESCE(SUM(CASE WHEN t.amount < 0 AND (t.is_ignored = 1 OR COALESCE(c.kind, 'expense') = 'transfer')
+                         THEN -t.amount ELSE 0 END), 0) AS out_of_month,
+       COALESCE(SUM(CASE WHEN t.is_ignored = 1 OR COALESCE(c.kind, 'expense') = 'transfer'
+                         THEN 1 ELSE 0 END), 0) AS out_of_month_count
+     FROM transactions t
+     LEFT JOIN categories c ON c.id = t.category_id
+     ${whereSql}`,
     binds,
-  ).first<{ total: number }>()
-  const total = totalRow?.total ?? 0
+  ).first<DbRow>()
+  const total = Number(totalRow?.total ?? 0)
 
   const listed = await prepare(
     db,
@@ -127,6 +144,12 @@ transactionRoutes.get('/transactions', async (c) => {
     items,
     total,
     hasMore: offset + items.length < total,
+    totals: {
+      spent: round2(Number(totalRow?.spent ?? 0)),
+      income: round2(Number(totalRow?.income ?? 0)),
+      outOfMonthTotal: round2(Number(totalRow?.out_of_month ?? 0)),
+      outOfMonthCount: Number(totalRow?.out_of_month_count ?? 0),
+    },
   }
   return json(body)
 })
