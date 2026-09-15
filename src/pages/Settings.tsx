@@ -21,6 +21,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import Card from '@/components/Card'
 import CategoryDot from '@/components/CategoryDot'
 import CategoryForm from '@/components/CategoryForm'
+import PotsSection from '@/components/PotsSection'
 import Skeleton from '@/components/Skeleton'
 
 export default function Settings() {
@@ -29,6 +30,7 @@ export default function Settings() {
       <h1 className="text-lg font-semibold">Ajustes</h1>
       <SyncSection />
       <NotificationsSection />
+      <PotsSection />
       <ImportSection />
       <RulesSection />
       <CategoriesSection />

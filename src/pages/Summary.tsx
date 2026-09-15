@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { Link, useLocation } from 'wouter'
 import { addMonths, currentMonth, formatMonthLabel, formatRelative } from '@shared/dates'
 import { formatBRL } from '@shared/money'
-import { useBreakdown, useRunSync, useSummary } from '@/lib/queries'
+import { useBalance, useBreakdown, useRunSync, useSummary } from '@/lib/queries'
 import { OWNER_INITIAL, OWNER_NAME, greeting } from '@/lib/profile'
 import Card from '@/components/Card'
+import BalanceCard from '@/components/BalanceCard'
 import PaceCard from '@/components/PaceCard'
 import BudgetMeter from '@/components/BudgetMeter'
 import CompositionBar from '@/components/CompositionBar'
@@ -36,6 +37,7 @@ export default function Summary() {
   const summary = useSummary(month)
   const breakdown = useBreakdown(month)
   const sync = useRunSync()
+  const balance = useBalance()
 
   if (summary.isLoading && !summary.data) {
     return (
@@ -81,6 +83,15 @@ export default function Summary() {
 
       <div className="mt-4 space-y-3">
         <HeroCard data={data} hasBudget={hasBudget} />
+
+        {/* Saldo logo abaixo do orcamento: sao perguntas diferentes (quanto
+            posso gastar no mes vs quanto tenho agora) e as duas aparecem
+            juntas em todo app de banco. */}
+        {balance.data && (balance.data.available !== 0 || balance.data.pots.length > 0) && (
+          <div className="rise rise-3">
+            <BalanceCard data={balance.data} />
+          </div>
+        )}
 
         {/* As três coisas que se faz num app de dinheiro sem estar procurando
             nada: lançar o que gastou agora, trazer o extrato, forçar o sync. */}

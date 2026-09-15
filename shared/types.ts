@@ -334,6 +334,56 @@ export interface ApiError {
 }
 
 // ---------------------------------------------------------------------------
+// Cofrinhos
+// ---------------------------------------------------------------------------
+
+/**
+ * Um cofrinho é uma CATEGORIA com acompanhamento de saldo.
+ *
+ * Categorizar um lançamento como ela move o dinheiro: sai da conta, entra no
+ * cofrinho. O saldo é a abertura informada mais a soma dos lançamentos com o
+ * sinal invertido — aplicação (saída da conta) soma, resgate subtrai.
+ */
+export interface Pot {
+  /** É o id da categoria: cofrinho e categoria são a mesma coisa. */
+  categoryId: number
+  name: string
+  colorSlot: number
+  /** Abertura + movimentações desde a data de abertura. */
+  balance: number
+  /** O que já estava guardado antes de o app ver o extrato. */
+  openingBalance: number
+  /** 'YYYY-MM-DD'. Lançamentos anteriores não são somados de novo. */
+  openingDate: string
+  goal: number | null
+  txCount: number
+}
+
+/**
+ * Quanto se tem de verdade, e quanto disso está guardado.
+ *
+ * A separação existe porque as duas respostas são diferentes e as duas
+ * importam: `available` é o que dá para gastar hoje; `total` é o patrimônio
+ * em conta. Mostrar só um dos dois esconde metade da informação.
+ */
+export interface BalanceSummary {
+  /** Soma das contas correntes. Cartão não entra: fatura é dívida. */
+  available: number
+  /** Soma dos cofrinhos. */
+  inPots: number
+  /** available + inPots. */
+  total: number
+  pots: Pot[]
+}
+
+export interface CreatePotRequest {
+  categoryId: number
+  openingBalance: number
+  openingDate?: string
+  goal?: number | null
+}
+
+// ---------------------------------------------------------------------------
 // Notificacoes push
 // ---------------------------------------------------------------------------
 

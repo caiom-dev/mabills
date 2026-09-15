@@ -1,5 +1,6 @@
 -- Apaga tudo. Usado por `npm run db:reset` durante o desenvolvimento.
 -- CUIDADO: nunca rode isso com --remote sem ter exportado um backup antes.
+DROP TABLE IF EXISTS pot_settings;
 DROP TABLE IF EXISTS push_alerts;
 DROP TABLE IF EXISTS push_subscriptions;
 DROP TABLE IF EXISTS sync_log;

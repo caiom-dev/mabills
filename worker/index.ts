@@ -19,6 +19,7 @@ import { ruleRoutes } from './routes/rules'
 import { syncRoutes } from './routes/sync'
 import { importRoutes } from './routes/import'
 import { pushRoutes } from './routes/push'
+import { potRoutes } from './routes/pots'
 import { runSync } from './pluggy/sync'
 import { sendBudgetAlerts } from './push/alerts'
 import type { Env } from './types'
@@ -38,6 +39,7 @@ app.route('/', ruleRoutes)
 app.route('/', syncRoutes)
 app.route('/', importRoutes)
 app.route('/', pushRoutes)
+app.route('/', potRoutes)
 
 /** 404 de API responde JSON. HTML aqui viraria erro de parse no cliente. */
 app.notFound(() => apiError('Rota não encontrada.', 404, { code: 'not_found' }))

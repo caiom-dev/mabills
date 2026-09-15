@@ -201,6 +201,7 @@ Confira que deu certo:
 - **Transações** — busca, filtro e edição de categoria.
 - **Orçamentos** — teto por categoria, com sugestão pela média dos 3 meses anteriores.
 - **Alertas** — se as notificações estiverem ativas, o aviso chega sozinho ao passar de 80% do teto e ao estourar.
+- **Saldo** — quanto há na conta, quanto está guardado em cofrinhos e o total.
 
 **Auditar uma categoria.** Em *Lançamentos*, o botão **Categoria** filtra a lista
 por qualquer categoria — inclusive as que não entram no total do mês. O painel no
@@ -243,6 +244,48 @@ contas suas. É o que impede o total do mês de contar o mesmo dinheiro duas vez
 
 ---
 
+## Cofrinhos
+
+Cofrinho (Itaú), caixinha (Nubank), reserva: dinheiro que **saiu da conta
+corrente mas continua sendo seu**. No extrato ele aparece como
+`Saída APLICACAO COFRINHOS` e some do saldo — o app precisa contar essa
+história de volta.
+
+**Um cofrinho é uma categoria.** Em *Ajustes → Cofrinhos*, escolha a categoria
+e informe quanto já está guardado hoje. A partir daí, marcar um lançamento com
+essa categoria move o dinheiro:
+
+| No extrato | No cofrinho |
+|---|---|
+| `Saída APLICACAO COFRINHOS` −1.500 | **+1.500** guardados |
+| `Resgate COFRINHOS` +1.500 | **−1.500** guardados |
+
+Nada disso conta como gasto do mês — guardar não é gastar. A categoria passa
+automaticamente para o tipo *Transferência* ao virar cofrinho.
+
+Ser categoria é o que faz o resto funcionar de graça: crie uma regra para
+`APLICACAO COFRINHOS` e toda aplicação futura entra no cofrinho sozinha,
+venha do sync ou de um OFX importado.
+
+A tela inicial passa a mostrar as duas respostas, que são diferentes:
+
+```
+Disponível na conta      R$    37,75     <- o que dá para gastar hoje
+Guardado em cofrinhos    R$ 1.400,00
+Total                    R$ 1.437,75
+```
+
+> **Por que o app pergunta quanto já está guardado.** O sync do Pluggy só traz
+> os últimos 35 dias. Somar apenas os lançamentos conhecidos mostraria um saldo
+> MENOR que o real para quem guarda dinheiro há mais tempo — e um número errado
+> com aparência de certo é pior que número nenhum. Lançamentos anteriores à data
+> de abertura não são somados de novo: já estão embutidos no valor informado.
+
+Cartão de crédito não entra no "disponível": o saldo de uma conta de crédito é
+fatura em aberto, ou seja, dívida.
+
+---
+
 ## Importar extrato
 
 Todo banco brasileiro exporta OFX — é o formato mais confiável, porque traz um id
@@ -264,7 +307,7 @@ npm run build        # build de produção
 npm run test:push    # 12 checagens da criptografia das notificações
 
 # Com `npx wrangler dev` rodando em outro terminal:
-npm run smoke        # 62 checagens end-to-end na API
+npm run smoke        # 69 checagens end-to-end na API
 ```
 
 O smoke test pode rodar quantas vezes quiser contra o mesmo banco: cada execução
@@ -281,6 +324,8 @@ falharem:
 - **reinscrever o mesmo aparelho não duplica** a notificação
 - **falha de rede não desinscreve** o aparelho — só 404/410 do serviço de push
 - **transferência não entra no total** do mês nem no detalhamento
+- **guardar no cofrinho não conta como gasto**, e aplicação soma enquanto resgate subtrai
+- **lançamento anterior à abertura do cofrinho não é contado duas vezes**
 - **o contador e o filtro de "sem categoria" concordam** — o número da tela inicial precisa devolver lista
 - **lançamento fora do total continua visível** ao filtrar pela categoria, com a exclusão explicada
 - **os dois escopos não se misturam** — o que está fora do total não vaza para o detalhamento normal

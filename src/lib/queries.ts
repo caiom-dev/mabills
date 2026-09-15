@@ -15,6 +15,8 @@ import {
 } from '@tanstack/react-query'
 import type {
   Category,
+  CreatePotRequest,
+  Pot,
   CreateCategoryRequest,
   CreateRuleRequest,
   CreateTransactionRequest,
@@ -40,6 +42,7 @@ export const keys = {
   budgetSuggestions: (month: string) => ['budgetSuggestions', month] as const,
   rules: ['rules'] as const,
   accounts: ['accounts'] as const,
+  balance: ['balance'] as const,
   syncStatus: ['syncStatus'] as const,
   pushStatus: ['pushStatus'] as const,
   pushDevice: ['pushDevice'] as const,
@@ -143,6 +146,37 @@ export function useRules() {
 
 export function useAccounts() {
   return useQuery({ queryKey: keys.accounts, queryFn: api.accounts })
+}
+
+/** Saldo disponível, guardado e total. */
+export function useBalance() {
+  return useQuery({ queryKey: keys.balance, queryFn: api.balance })
+}
+
+export function useCreatePot(): UseMutationResult<Pot, ApiError, CreatePotRequest> {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: api.createPot,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.balance })
+      void client.invalidateQueries({ queryKey: keys.categories })
+      // Virar cofrinho muda o kind para transferência, o que tira os
+      // lançamentos do total do mês: o resumo precisa ser refeito.
+      void client.invalidateQueries({ queryKey: ['summary'] })
+      void client.invalidateQueries({ queryKey: ['breakdown'] })
+    },
+  })
+}
+
+export function useDeletePot(): UseMutationResult<{ ok: true }, ApiError, number> {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: api.deletePot,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.balance })
+      void client.invalidateQueries({ queryKey: keys.categories })
+    },
+  })
 }
 
 export function useSyncStatus() {

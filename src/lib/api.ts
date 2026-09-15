@@ -9,6 +9,9 @@
 
 import type {
   Account,
+  BalanceSummary,
+  CreatePotRequest,
+  Pot,
   BudgetProgress,
   BudgetSuggestion,
   Category,
@@ -160,6 +163,10 @@ export const api = {
   deleteRule: (id: number) => del<{ ok: true }>(`/rules/${id}`),
 
   accounts: () => apiFetch<Account[]>('/accounts'),
+
+  balance: () => apiFetch<BalanceSummary>('/balance'),
+  createPot: (body: CreatePotRequest) => post<Pot>('/pots', body),
+  deletePot: (categoryId: number) => del<{ ok: true }>(`/pots/${categoryId}`),
   syncStatus: () => apiFetch<SyncStatus>('/sync/status'),
   runSync: (full = false) => post<SyncResult>(`/sync${toQuery({ full: full ? 1 : undefined })}`),
 

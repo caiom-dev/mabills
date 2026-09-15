@@ -690,6 +690,121 @@ console.log('\nAuditoria de categoria')
 }
 
 // ---------------------------------------------------------------------------
+console.log('\nCofrinhos')
+// ---------------------------------------------------------------------------
+
+{
+  // O cenario e o extrato real que originou a feature:
+  //   aplicou 1500, resgatou 1500, aplicou 1400  ->  1400 guardados
+  // ...sobre uma abertura de 2000 que o app nunca viu (fora da janela de 35
+  // dias do sync). Total esperado: 3400.
+  const cat = await call('POST', '/api/categories', {
+    name: `Cofrinho ${RUN}`,
+    // 'expense' de proposito: a rota de cofrinho tem de corrigir para
+    // 'transfer' sozinha, senao guardar dinheiro contaria como gasto.
+    kind: 'expense',
+    colorSlot: 3,
+  })
+  const catId = cat.json?.id
+
+  if (!catId) {
+    bad('categoria do cofrinho criada', `status ${cat.status}`)
+  } else {
+    const pot = await call('POST', '/api/pots', {
+      categoryId: catId,
+      openingBalance: 2000,
+      openingDate: `${month}-01`,
+      goal: 5000,
+    })
+
+    if (pot.status === 200 && pot.json?.balance === 2000) {
+      ok('cofrinho nasce com o saldo de abertura', 'R$ 2000,00')
+    } else {
+      bad('cofrinho nasce com o saldo de abertura', `status ${pot.status} saldo=${pot.json?.balance}`)
+    }
+
+    const kindAgora = (await call('GET', '/api/categories')).json?.find((c) => c.id === catId)?.kind
+    if (kindAgora === 'transfer') ok('categoria vira transferencia sozinha')
+    else bad('categoria vira transferencia sozinha', `kind=${kindAgora}`)
+
+    const antesGasto = (await call('GET', `/api/summary?month=${month}`)).json?.totalSpent ?? 0
+
+    const ids = []
+    for (const [valor, desc, tipo] of [
+      [1500, 'APLICACAO COFRINHOS', 'expense'],
+      [1500, 'Resgate COFRINHOS', 'income'],
+      [1400, 'APLICACAO COFRINHOS 2', 'expense'],
+    ]) {
+      const r = await call('POST', '/api/transactions', {
+        date: `${month}-10`,
+        amount: valor,
+        description: `Smoke ${desc}`,
+        categoryId: catId,
+        kind: tipo,
+      })
+      if (r.json?.id) ids.push(r.json.id)
+    }
+
+    const saldo = await call('GET', '/api/balance')
+    const meu = saldo.json?.pots?.find((p) => p.categoryId === catId)
+
+    if (meu?.balance === 3400) {
+      ok('aplicacao soma e resgate subtrai', '2000 +1500 −1500 +1400 = 3400')
+    } else {
+      bad('aplicacao soma e resgate subtrai', `saldo=${meu?.balance} (esperado 3400)`)
+    }
+
+    // O ponto do produto: guardar nao e gastar.
+    const depoisGasto = (await call('GET', `/api/summary?month=${month}`)).json?.totalSpent ?? 0
+    if (Math.abs(depoisGasto - antesGasto) < 0.01) {
+      ok('guardar dinheiro NAO conta como gasto do mes')
+    } else {
+      bad('guardar dinheiro NAO conta como gasto do mes', `${antesGasto} -> ${depoisGasto}`)
+    }
+
+    const b = saldo.json
+    const faltaB = hasKeys(b, ['available', 'inPots', 'total', 'pots'])
+    if (faltaB) {
+      bad('contrato de BalanceSummary', faltaB)
+    } else if (Math.abs(b.total - (b.available + b.inPots)) < 0.01) {
+      ok('total = disponivel + guardado', `${b.available} + ${b.inPots}`)
+    } else {
+      bad('total = disponivel + guardado', `${b.available} + ${b.inPots} != ${b.total}`)
+    }
+
+    // Lancamento anterior a abertura ja esta embutido no valor informado.
+    // Soma-lo de novo dobraria o dinheiro guardado.
+    const antigo = await call('POST', '/api/transactions', {
+      date: '2020-01-15',
+      amount: 999,
+      description: `Smoke aplicacao antiga ${RUN}`,
+      categoryId: catId,
+      kind: 'expense',
+    })
+    const saldo2 = await call('GET', '/api/balance')
+    const meu2 = saldo2.json?.pots?.find((p) => p.categoryId === catId)
+    if (meu2?.balance === 3400) {
+      ok('lancamento anterior a abertura nao e contado duas vezes')
+    } else {
+      bad('lancamento anterior a abertura nao e contado duas vezes', `saldo=${meu2?.balance}`)
+    }
+
+    // Deixar de acompanhar nao pode apagar a categoria nem os lancamentos.
+    await call('DELETE', `/api/pots/${catId}`)
+    const depoisDeParar = await call('GET', '/api/balance')
+    const sumiu = !depoisDeParar.json?.pots?.some((p) => p.categoryId === catId)
+    const categoriaViva = (await call('GET', '/api/categories')).json?.some((c) => c.id === catId)
+    if (sumiu && categoriaViva) ok('parar de acompanhar preserva a categoria')
+    else bad('parar de acompanhar preserva a categoria', `sumiu=${sumiu} viva=${categoriaViva}`)
+
+    for (const id of [...ids, antigo.json?.id].filter(Boolean)) {
+      await call('DELETE', `/api/transactions/${id}`)
+    }
+    await call('DELETE', `/api/categories/${catId}`)
+  }
+}
+
+// ---------------------------------------------------------------------------
 console.log('\nNotificacoes')
 // ---------------------------------------------------------------------------
 
