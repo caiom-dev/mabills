@@ -284,3 +284,5 @@ Os dados são SQLite puro. Exporte quando quiser:
 ```powershell
 npx wrangler d1 export mabills --remote --output backup.sql
 ```
+#   m a b i l l s  
+ 
