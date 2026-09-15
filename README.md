@@ -15,6 +15,7 @@ Responde três perguntas em três segundos: **quanto já gastei este mês, em qu
 | **App e API na mesma origem** | Elimina CORS e permite cookie de sessão `SameSite=Strict`. Um único `wrangler deploy` publica tudo. |
 | **PIN + cookie, não Cloudflare Access** | O Access quebra PWA no iPhone: quando o cookie expira, os `fetch()` recebem redirect cross-origin e o app fica em tela branca sem conseguir pedir login. Aqui a API responde **401 JSON** e o app mostra a tela de PIN dentro do próprio PWA. |
 | **Orçamento por categoria + indicador de ritmo** | Avisar depois do estouro não muda comportamento. O app compara quanto você já gastou com quanto do mês já passou e avisa **enquanto ainda dá para corrigir**. |
+| **Transferência não é gasto — mas continua visível** | Pagar a fatura do cartão, aplicar no cofrinho e mandar Pix para si mesmo movimentam a conta sem gastar nada: as compras do cartão já foram lançadas uma a uma, e o dinheiro aplicado continua sendo seu. Contá-los inflou um mês real em R$ 5 mil. Eles ficam fora do total **e** ganham uma seção própria: esconder o número resolveria a soma e criaria um buraco na auditoria. |
 | **Notificação com o texto dentro, cifrada** | O padrão permite mandar um push vazio e deixar o app buscar o texto na hora da entrega — o que exigiria sessão válida e rede no exato momento. Aqui o aviso vai cifrado **para o aparelho** (RFC 8291): o serviço da Apple entrega bytes que não consegue ler, e a notificação funciona mesmo com a sessão expirada. |
 
 ---
@@ -102,7 +103,27 @@ pago se o app for comercializado.
 1. Cadastre-se em **[meu.pluggy.ai](https://meu.pluggy.ai)** → "Conectar Minha Conta" → adicione cada banco.
 2. Cadastre-se em **[dashboard.pluggy.ai](https://dashboard.pluggy.ai)** → crie uma aplicação.
 3. No Dashboard, selecione o conector **MeuPluggy** e autorize — **uma vez para cada banco** conectado.
-4. Anote o `clientId`, o `clientSecret` e o `itemId` de cada conexão.
+4. Anote o `clientId` e o `clientSecret` da aplicação.
+
+Falta o `itemId` de cada conexão — e é o passo que o Pluggy não facilita: a
+documentação deles diz que **listar conexões não é oferecido** e que guardar os
+ids é responsabilidade de quem integra. Para não ter que caçar:
+
+```powershell
+npm run pluggy:items
+```
+
+Ele autentica com as suas credenciais e tenta o `GET /v2/items`. Esse endpoint
+vem **desligado por padrão**; quando estiver fechado, o script diz onde olhar no
+Dashboard (**Dados Financeiros**) em vez de falhar em silêncio. Com os ids em
+mãos, confira antes de gravar:
+
+```powershell
+npm run pluggy:items -- <id1> <id2>
+```
+
+Ele mostra o banco e as contas de cada id, avisa qual precisa ser reconectado, e
+imprime o valor pronto para o `PLUGGY_ITEM_IDS`.
 
 ```powershell
 npx wrangler secret put PLUGGY_CLIENT_ID
@@ -181,6 +202,22 @@ Confira que deu certo:
 - **Orçamentos** — teto por categoria, com sugestão pela média dos 3 meses anteriores.
 - **Alertas** — se as notificações estiverem ativas, o aviso chega sozinho ao passar de 80% do teto e ao estourar.
 
+**Auditar uma categoria.** Em *Lançamentos*, o botão **Categoria** filtra a lista
+por qualquer categoria — inclusive as que não entram no total do mês. O painel no
+topo separa as duas coisas:
+
+```
+Saiu da conta            R$ 2.050,00
+Fora do total do mês (3)  − R$ 1.800,00
+Conta como gasto           R$   250,00
+```
+
+É a resposta para "somei os lançamentos na mão e não bate com a tela inicial":
+não bate mesmo, e essa linha diz exatamente por quê.
+
+Em *Categorias*, a seção **Fora do total do mês** lista essas categorias com o
+valor de cada uma. Tocar em qualquer linha abre os lançamentos dela.
+
 **O atalho que mais importa:** ao trocar a categoria de um lançamento, marque
 *"aplicar a todos os lançamentos de X"*. Isso cria uma regra permanente e
 recategoriza o histórico. Duas semanas fazendo isso e a categorização fica boa
@@ -188,6 +225,21 @@ sozinha.
 
 Um teto definido vale como **padrão para todos os meses**. Use *"só neste mês"*
 quando quiser uma exceção pontual (dezembro, viagem).
+
+**Criar categoria** está em três lugares, porque a necessidade aparece em três
+momentos: o botão **+** em *Categorias*, o chip **+ Nova** na hora de classificar
+um lançamento (que já deixa a nova categoria escolhida), e *Ajustes*.
+
+O **tipo** importa mais do que parece:
+
+| Tipo | Efeito |
+|---|---|
+| **Despesa** | entra no total gasto e aceita teto |
+| **Receita** | entra como entrada do mês |
+| **Transferência** | fica fora do total — nem gasto, nem renda |
+
+Use **Transferência** para pagamento de fatura, aplicação/resgate e Pix entre
+contas suas. É o que impede o total do mês de contar o mesmo dinheiro duas vezes.
 
 ---
 
@@ -212,7 +264,7 @@ npm run build        # build de produção
 npm run test:push    # 12 checagens da criptografia das notificações
 
 # Com `npx wrangler dev` rodando em outro terminal:
-npm run smoke        # 45 checagens end-to-end na API
+npm run smoke        # 62 checagens end-to-end na API
 ```
 
 O smoke test pode rodar quantas vezes quiser contra o mesmo banco: cada execução
@@ -228,6 +280,10 @@ falharem:
 - **sync degrada sem credenciais do Pluggy**, em vez de dar 500
 - **reinscrever o mesmo aparelho não duplica** a notificação
 - **falha de rede não desinscreve** o aparelho — só 404/410 do serviço de push
+- **transferência não entra no total** do mês nem no detalhamento
+- **o contador e o filtro de "sem categoria" concordam** — o número da tela inicial precisa devolver lista
+- **lançamento fora do total continua visível** ao filtrar pela categoria, com a exclusão explicada
+- **os dois escopos não se misturam** — o que está fora do total não vaza para o detalhamento normal
 
 O `test:push` cobre a criptografia da notificação (RFC 8291), que é a única
 parte do app cujo erro não aparece em lugar nenhum: uma derivação de chave
@@ -257,7 +313,9 @@ npx wrangler d1 execute mabills --remote --command "SELECT * FROM sync_log ORDER
 | **Sync parou sozinho** | Algum item caiu em `LOGIN_ERROR` (senha trocada, MFA). Ajustes mostra faixa vermelha. Reconecte em meu.pluggy.ai. |
 | **Gasto no mês errado** | Compra após 21h cai no dia seguinte em UTC. O app converte para BRT na ingestão — se aparecer, é bug de ingestão, não de exibição. |
 | **Cartão com valor invertido** | No Pluggy, conta de crédito usa positivo = despesa (o oposto de conta corrente). A normalização é por `account.type`. |
-| **Transferência inflando o orçamento** | Marque o lançamento como *"Ignorar no orçamento"*, ou crie regra para a categoria Transferências. |
+| **Transferência inflando o orçamento** | Marque o lançamento como *"Ignorar no orçamento"*, ou mude a categoria dele para uma do tipo **Transferência**. Confira o resultado em *Categorias → Fora do total do mês*. |
+| **"Somei na mão e não bate com a tela inicial"** | Provavelmente está certo. Filtre a categoria em *Lançamentos*: o painel mostra quanto saiu da conta e quanto disso não conta no mês. |
+| **Uma categoria sumiu das telas de análise** | Categoria do tipo *Transferência* não aparece em "Por categoria" nem na composição, de propósito. Ela está em *Categorias → Fora do total do mês*. |
 | **Login não entra em dev** | O cookie usa `Secure`, que o navegador recusa em `http://`. O código já detecta e omite em localhost — se persistir, use o túnel HTTPS. |
 | **PWA não instala** | Precisa ser HTTPS e precisa ser o **Safari**. Para testar antes de publicar: `npx cloudflared tunnel --url http://localhost:8787`. |
 | **Notificação não chega** | Na ordem: o app precisa estar na tela de início (não em aba); os três segredos `VAPID_*` precisam existir em produção; e o alerta de cada categoria sai **uma vez por mês** por estado — se já avisou, não repete. Use *Enviar notificação de teste* para separar "não configurado" de "não havia o que avisar". |
@@ -284,5 +342,3 @@ Os dados são SQLite puro. Exporte quando quiser:
 ```powershell
 npx wrangler d1 export mabills --remote --output backup.sql
 ```
-#   m a b i l l s  
- 
