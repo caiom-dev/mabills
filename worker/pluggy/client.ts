@@ -212,7 +212,6 @@ export interface TransactionsPageQuery {
   dateTo: string
   /** Cursor devolvido em `next` pela pagina anterior. */
   after?: string | null
-  pageSize?: number
 }
 
 /**
@@ -221,6 +220,11 @@ export interface TransactionsPageQuery {
  * Usa /v2/transactions (cursor). O antigo /transactions com page/pageSize esta
  * depreciado e sai do ar em 31/12/2026. Quem itera e o sync, que precisa
  * decidir a cada pagina se ainda ha orcamento de subrequests.
+ *
+ * NAO existe pageSize nesta rota - mandar o parametro faz a API responder
+ * HTTP 400 "property pageSize should not exist" e nenhuma transacao chega. O
+ * tamanho de pagina e fixo em 500, que ja e o maximo e o melhor para nos: menos
+ * paginas significa menos subrequests dentro do orcamento de 50 da invocacao.
  */
 export async function fetchTransactionsPage(
   env: Env,
@@ -231,7 +235,6 @@ export async function fetchTransactionsPage(
     dateFrom: query.dateFrom,
     dateTo: query.dateTo,
     after: query.after ?? undefined,
-    pageSize: query.pageSize,
   })
   return { results: page?.results ?? [], next: page?.next ?? null }
 }

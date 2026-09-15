@@ -18,6 +18,7 @@
     "pin": "node scripts/hash-pin.mjs",
     "secret": "node scripts/gen-secret.mjs",
     "vapid": "node scripts/gen-vapid.mjs",
+    "pluggy:items": "node scripts/pluggy-items.mjs",
     "icons": "node scripts/make-icons.mjs",
     "smoke": "node scripts/smoke-test.mjs",
     "test:push": "node --experimental-strip-types --no-warnings scripts/test-push-crypto.mjs"

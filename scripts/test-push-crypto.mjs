@@ -261,5 +261,8 @@ console.log('\nCriptografia de push (RFC 8291)\n')
 
 console.log('\n----------------------------------------------------')
 console.log(`${pass} passaram, ${fail} falharam\n`)
-if (fail > 0) process.exit(1)
-console.log('Tudo certo.\n')
+if (fail > 0) {
+  process.exitCode = 1
+} else {
+  console.log('Tudo certo.\n')
+}

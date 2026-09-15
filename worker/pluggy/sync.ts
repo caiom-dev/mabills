@@ -43,7 +43,6 @@ const OVERLAP_DAYS = 5
 const BACKFILL_MONTHS = 12
 
 /** Pagina grande = menos paginas = menos subrequests. */
-const PAGE_SIZE = 200
 
 /**
  * Linhas por db.batch(). Fica bem abaixo do limite de parametros por statement
@@ -261,7 +260,6 @@ export async function runSync(
               dateFrom,
               dateTo: today,
               after,
-              pageSize: PAGE_SIZE,
             })
           } catch (err) {
             hadFailure = true

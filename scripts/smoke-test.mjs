@@ -228,6 +228,56 @@ if (createdTxId) {
   const s = await call('GET', `/api/summary?month=${month}`)
   if ((s.json?.totalSpent ?? 0) >= 123.45) ok('gasto entra no total do mes')
   else bad('gasto entra no total do mes', `totalSpent = ${s.json?.totalSpent}`)
+
+  // Transferencia NAO pode entrar no total.
+  //
+  // Esta checagem nasceu de um bug real em producao: pagamento de fatura,
+  // aplicacao e resgate contavam como gasto e o mes fechou R$ 6 mil acima do
+  // que o usuario tinha gastado de fato. O teto por categoria filtrava
+  // kind='expense'; o total do topo nao - e as duas telas discordavam.
+  const catList = await call('GET', '/api/categories')
+  const transferId = Array.isArray(catList.json)
+    ? (catList.json.find((c) => c.name === 'Transferencias')?.id ?? null)
+    : null
+
+  if (transferId === null) {
+    bad('categoria Transferencias disponivel', 'nao encontrada no seed')
+  } else {
+    const antes = s.json?.totalSpent ?? 0
+    const t = await call('POST', '/api/transactions', {
+      date: `${month}-16`,
+      amount: 5000,
+      description: 'Teste smoke - pagamento de fatura',
+      categoryId: transferId,
+      kind: 'expense',
+    })
+
+    if (t.status !== 200 && t.status !== 201) {
+      bad('POST /transactions (transferencia)', `status ${t.status}`)
+    } else {
+      const depois = await call('GET', `/api/summary?month=${month}`)
+      const total = depois.json?.totalSpent ?? 0
+      if (Math.abs(total - antes) < 0.01) {
+        ok('transferencia NAO entra no total de gastos', `totalSpent segue ${total}`)
+      } else {
+        bad(
+          'transferencia NAO entra no total de gastos',
+          `totalSpent foi de ${antes} para ${total}`,
+        )
+      }
+
+      // O detalhamento alimenta o grafico de composicao: uma transferencia ali
+      // apareceria como a maior "despesa" do mes.
+      const breakdown = await call('GET', `/api/breakdown?month=${month}`)
+      const vazou = Array.isArray(breakdown.json)
+        ? breakdown.json.some((b) => b.categoryName === 'Transferencias')
+        : false
+      if (vazou) bad('transferencia fora do detalhamento', 'apareceu no /breakdown')
+      else ok('transferencia fora do detalhamento')
+
+      if (t.json?.id) await call('DELETE', `/api/transactions/${t.json.id}`)
+    }
+  }
 }
 
 if (mercadoId) {
@@ -406,6 +456,240 @@ console.log('\nRegra a partir de um lancamento')
 }
 
 // ---------------------------------------------------------------------------
+console.log('\nCriar categoria')
+// ---------------------------------------------------------------------------
+
+{
+  // Criar categoria e a unica escrita do app que nao tinha cobertura nenhuma
+  // aqui - e a UI so sabia criar despesa, entao os outros dois tipos nunca
+  // tinham sido exercitados por ninguem.
+  const criadas = []
+
+  for (const [kind, slot] of [
+    ['expense', 3],
+    ['income', 6],
+    ['transfer', 0],
+  ]) {
+    const nome = `Smoke ${kind} ${RUN}`
+    const r = await call('POST', '/api/categories', { name: nome, kind, colorSlot: slot })
+
+    if (r.status !== 200 && r.status !== 201) {
+      bad(`cria categoria do tipo ${kind}`, `status ${r.status} ${r.text.slice(0, 140)}`)
+    } else if (r.json?.kind !== kind || r.json?.colorSlot !== slot) {
+      bad(
+        `cria categoria do tipo ${kind}`,
+        `voltou kind=${r.json?.kind} slot=${r.json?.colorSlot}`,
+      )
+    } else {
+      ok(`cria categoria do tipo ${kind}`, `slot ${slot}`)
+      criadas.push(r.json)
+    }
+  }
+
+  if (criadas.length > 0) {
+    const lista = await call('GET', '/api/categories')
+    const todasPresentes = criadas.every((c) => lista.json?.some((x) => x.id === c.id))
+    if (todasPresentes) ok('categoria criada aparece na listagem')
+    else bad('categoria criada aparece na listagem', 'alguma nao voltou')
+
+    // Nome repetido tem de ser recusado com mensagem, nao com 500 do UNIQUE.
+    const dup = await call('POST', '/api/categories', {
+      name: criadas[0].name,
+      kind: 'expense',
+      colorSlot: 2,
+    })
+    if (dup.status >= 400 && dup.status < 500 && dup.json?.error) {
+      ok('nome repetido e recusado com mensagem', `status ${dup.status}`)
+    } else {
+      bad('nome repetido e recusado com mensagem', `status ${dup.status}`)
+    }
+
+    // Slot fora da paleta validada nao pode entrar: a validacao de daltonismo
+    // vale para os 8 slots, um 9o seria indistinguivel.
+    const slotInvalido = await call('POST', '/api/categories', {
+      name: `Smoke slot ${RUN}`,
+      kind: 'expense',
+      colorSlot: 99,
+    })
+    if (slotInvalido.status === 400) ok('cor fora da paleta e recusada')
+    else bad('cor fora da paleta e recusada', `status ${slotInvalido.status}`)
+
+    // Uma categoria de transferencia recem-criada precisa REALMENTE ficar fora
+    // do total - e o motivo de o tipo existir.
+    const transfer = criadas.find((c) => c.kind === 'transfer')
+    if (transfer) {
+      const antes = (await call('GET', `/api/summary?month=${month}`)).json?.totalSpent ?? 0
+      const tx = await call('POST', '/api/transactions', {
+        date: `${month}-18`,
+        amount: 777,
+        description: 'Teste smoke - transferencia nova',
+        categoryId: transfer.id,
+        kind: 'expense',
+      })
+      const depois = (await call('GET', `/api/summary?month=${month}`)).json?.totalSpent ?? 0
+
+      if (Math.abs(depois - antes) < 0.01) {
+        ok('categoria de transferencia criada fica fora do total')
+      } else {
+        bad('categoria de transferencia criada fica fora do total', `${antes} -> ${depois}`)
+      }
+      if (tx.json?.id) await call('DELETE', `/api/transactions/${tx.json.id}`)
+    }
+
+    for (const c of criadas) await call('DELETE', `/api/categories/${c.id}`)
+
+    const depoisDeApagar = await call('GET', '/api/categories')
+    const sobrou = criadas.some((c) => depoisDeApagar.json?.some((x) => x.id === c.id))
+    if (sobrou) bad('categoria removida some da listagem', 'alguma continua la')
+    else ok('categoria removida some da listagem')
+  }
+}
+
+// ---------------------------------------------------------------------------
+console.log('\nLancamentos sem categoria')
+// ---------------------------------------------------------------------------
+
+{
+  // O numero da tela inicial precisa bater com o que o filtro entrega.
+  //
+  // Bug real em producao: o resumo contava 'Outros' como "sem categoria" e a
+  // listagem filtrava so category_id IS NULL. O app anunciava "35 lancamentos
+  // sem categoria", o usuario tocava, e a tela vinha vazia. Duas definicoes da
+  // mesma regra, uma so corrigida.
+  const resumo = await call('GET', `/api/summary?month=${month}`)
+  const contados = resumo.json?.uncategorizedCount ?? 0
+
+  const filtrados = await call('GET', `/api/transactions?month=${month}&uncategorized=1`)
+  const devolvidos = filtrados.json?.total ?? 0
+
+  if (filtrados.status !== 200) {
+    bad('GET /transactions?uncategorized=1', `status ${filtrados.status}`)
+  } else if (contados === devolvidos) {
+    ok('contador e filtro de "sem categoria" concordam', `${contados} lançamento(s)`)
+  } else {
+    bad(
+      'contador e filtro de "sem categoria" concordam',
+      `resumo diz ${contados}, filtro devolve ${devolvidos}`,
+    )
+  }
+
+  // Um lancamento em 'Outros' TEM de entrar: e o balde de fallback do
+  // categorizador, e e justamente o que espera decisao do usuario.
+  const outrosId = (await call('GET', '/api/categories')).json?.find(
+    (x) => x.name === 'Outros',
+  )?.id
+
+  if (!outrosId) {
+    bad('categoria Outros disponivel', 'nao encontrada no seed')
+  } else {
+    const novo = await call('POST', '/api/transactions', {
+      date: `${month}-17`,
+      amount: 42.42,
+      description: 'Teste smoke - sem classificar',
+      categoryId: outrosId,
+      kind: 'expense',
+    })
+
+    if (novo.status !== 200 && novo.status !== 201) {
+      bad('POST /transactions (Outros)', `status ${novo.status}`)
+    } else {
+      const depois = await call('GET', `/api/transactions?month=${month}&uncategorized=1`)
+      const achou = depois.json?.items?.some((t) => t.id === novo.json?.id)
+      if (achou) ok('lançamento em "Outros" aparece no filtro')
+      else bad('lançamento em "Outros" aparece no filtro', 'nao veio na lista')
+
+      if (novo.json?.id) await call('DELETE', `/api/transactions/${novo.json.id}`)
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+console.log('\nAuditoria de categoria')
+// ---------------------------------------------------------------------------
+
+{
+  // O que o total do mes esconde precisa continuar VISIVEL em algum lugar.
+  //
+  // Tirar transferencia do total foi correto, mas levou junto a unica forma de
+  // enxergar aquele dinheiro: pagamento de fatura e aplicacao sumiram de todas
+  // as telas de analise. Estas checagens garantem que a lista e os totais por
+  // categoria continuam mostrando o valor cheio, com a exclusao explicada.
+  const cats = await call('GET', '/api/categories')
+  const transferId = cats.json?.find((c) => c.name === 'Transferencias')?.id
+  const mercadoId2 = cats.json?.find((c) => c.name === 'Mercado')?.id
+
+  if (!transferId || !mercadoId2) {
+    bad('categorias do seed disponiveis', 'Transferencias ou Mercado ausente')
+  } else {
+    // Uma saida normal e uma transferencia, no mesmo mes.
+    const gasto = await call('POST', '/api/transactions', {
+      date: `${month}-19`,
+      amount: 250,
+      description: 'Teste smoke - compra normal',
+      categoryId: mercadoId2,
+      kind: 'expense',
+    })
+    const transf = await call('POST', '/api/transactions', {
+      date: `${month}-19`,
+      amount: 1800,
+      description: 'Teste smoke - pagamento de fatura',
+      categoryId: transferId,
+      kind: 'expense',
+    })
+
+    // 1. A listagem filtrada pela transferencia PRECISA trazer o lancamento.
+    const lista = await call('GET', `/api/transactions?month=${month}&categoryId=${transferId}`)
+    const achou = lista.json?.items?.some((t) => t.id === transf.json?.id)
+    if (achou) ok('lancamento fora do total aparece ao filtrar pela categoria')
+    else bad('lancamento fora do total aparece ao filtrar pela categoria', 'nao veio')
+
+    // 2. Os totais precisam separar o que conta do que nao conta.
+    const t = lista.json?.totals
+    const faltando = hasKeys(t, ['spent', 'income', 'outOfMonthTotal', 'outOfMonthCount'])
+    if (faltando) {
+      bad('contrato de TransactionTotals', faltando)
+    } else if (t.spent >= 1800 && t.outOfMonthTotal >= 1800) {
+      ok('totais mostram o valor cheio E o quanto fica fora', `R$ ${t.outOfMonthTotal}`)
+    } else {
+      bad(
+        'totais mostram o valor cheio E o quanto fica fora',
+        `spent=${t.spent} fora=${t.outOfMonthTotal}`,
+      )
+    }
+
+    // 3. A categoria normal nao pode ter nada "fora do total".
+    const listaNormal = await call(
+      'GET',
+      `/api/transactions?month=${month}&categoryId=${mercadoId2}`,
+    )
+    if ((listaNormal.json?.totals?.outOfMonthTotal ?? -1) === 0) {
+      ok('categoria comum nao reporta exclusao')
+    } else {
+      bad('categoria comum nao reporta exclusao', `fora=${listaNormal.json?.totals?.outOfMonthTotal}`)
+    }
+
+    // 4. O espelho do detalhamento traz a transferencia...
+    const fora = await call('GET', `/api/breakdown?month=${month}&scope=out`)
+    const temTransf = Array.isArray(fora.json)
+      ? fora.json.some((b) => b.categoryName === 'Transferencias')
+      : false
+    if (temTransf) ok('breakdown?scope=out lista a transferencia')
+    else bad('breakdown?scope=out lista a transferencia', 'nao veio')
+
+    // 5. ...e o detalhamento normal continua SEM ela.
+    const dentro = await call('GET', `/api/breakdown?month=${month}`)
+    const vazou = Array.isArray(dentro.json)
+      ? dentro.json.some((b) => b.categoryName === 'Transferencias')
+      : false
+    if (vazou) bad('os dois escopos nao se misturam', 'transferencia vazou para o detalhamento')
+    else ok('os dois escopos nao se misturam')
+
+    if (gasto.json?.id) await call('DELETE', `/api/transactions/${gasto.json.id}`)
+    if (transf.json?.id) await call('DELETE', `/api/transactions/${transf.json.id}`)
+  }
+}
+
+// ---------------------------------------------------------------------------
 console.log('\nNotificacoes')
 // ---------------------------------------------------------------------------
 
@@ -521,6 +805,11 @@ console.log(`${pass} passaram, ${fail} falharam`)
 if (fail) {
   console.log('\nFalhas:')
   for (const f of failures) console.log(`  - ${f}`)
-  process.exit(1)
+  // exitCode em vez de process.exit(): no Windows, encerrar a forca com
+  // conexoes de fetch ainda abertas dispara um assert do libuv e o processo
+  // sai com 127 no lugar de 1 - justamente na falha, que e quando o codigo
+  // de saida importa para quem chamou.
+  process.exitCode = 1
+} else {
+  console.log('\nTudo certo.\n')
 }
-console.log('\nTudo certo.\n')

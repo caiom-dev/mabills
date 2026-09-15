@@ -8,7 +8,7 @@
 
 import { Hono } from 'hono'
 import type { PushStatus, PushSubscriptionInput } from '@shared/types'
-import { badRequest, json, readJson, type AppEnv } from '../http'
+import { apiError, badRequest, json, readJson, type AppEnv } from '../http'
 import { sendToAll } from '../push/send'
 import { isPushConfigured } from '../push/vapid'
 
@@ -16,6 +16,20 @@ export const pushRoutes = new Hono<AppEnv>()
 
 /** base64url de tamanho conhecido: 65 bytes viram 87 chars, 16 viram 22. */
 const BASE64URL = /^[A-Za-z0-9_-]+$/
+
+/**
+ * Banco sem a migration 0003 vira mensagem, nao 500.
+ *
+ * Acontece de verdade: atualizar o codigo e esquecer o `npm run db:init` deixa
+ * as tabelas de push faltando, e o unico sintoma seria "Erro interno" - que nao
+ * diz a quem le o que fazer. Aqui o erro nomeia o comando que resolve.
+ */
+function isMissingPushTable(err: unknown): boolean {
+  return err instanceof Error && /no such table: push_/.test(err.message)
+}
+
+const MIGRATION_HINT =
+  'As tabelas de notificação não existem neste banco. Rode: npm run db:init (ou db:init:remote em produção).'
 
 function requireKey(value: unknown, field: string, minLength: number): string {
   const text = typeof value === 'string' ? value.trim() : ''
@@ -73,15 +87,20 @@ pushRoutes.post('/push/subscribe', async (c) => {
 
   // O mesmo aparelho reinscrito devolve o mesmo endpoint: atualizar em vez de
   // inserir evita duas linhas mandando a mesma notificacao para o mesmo iPhone.
-  await c.env.DB.prepare(
-    `INSERT INTO push_subscriptions (endpoint, p256dh, auth) VALUES (?, ?, ?)
-     ON CONFLICT(endpoint) DO UPDATE SET
-       p256dh = excluded.p256dh,
-       auth = excluded.auth,
-       fail_count = 0`,
-  )
-    .bind(endpoint, p256dh, auth)
-    .run()
+  try {
+    await c.env.DB.prepare(
+      `INSERT INTO push_subscriptions (endpoint, p256dh, auth) VALUES (?, ?, ?)
+       ON CONFLICT(endpoint) DO UPDATE SET
+         p256dh = excluded.p256dh,
+         auth = excluded.auth,
+         fail_count = 0`,
+    )
+      .bind(endpoint, p256dh, auth)
+      .run()
+  } catch (err) {
+    if (isMissingPushTable(err)) return apiError(MIGRATION_HINT, 503, { code: 'push_no_table' })
+    throw err
+  }
 
   return json({ ok: true as const })
 })
@@ -91,7 +110,15 @@ pushRoutes.post('/push/unsubscribe', async (c) => {
   const endpoint = typeof body?.endpoint === 'string' ? body.endpoint.trim() : ''
   if (!endpoint) badRequest('Endereço de inscrição ausente.')
 
-  await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(endpoint).run()
+  try {
+    await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?')
+      .bind(endpoint)
+      .run()
+  } catch (err) {
+    // Desinscrever com a tabela ausente ja esta no estado desejado: o aparelho
+    // nao recebe nada. Falhar aqui so deixaria o app preso na tela de erro.
+    if (!isMissingPushTable(err)) throw err
+  }
   return json({ ok: true as const })
 })
 
