@@ -2,11 +2,22 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <!-- viewport-fit=cover e o que habilita env(safe-area-inset-*) no iPhone.
-         Sem isso a barra inferior fica atras do indicador de gestos. -->
+    <!--
+      viewport-fit=cover habilita env(safe-area-inset-*) no iPhone. Sem isso a
+      barra inferior fica atras do indicador de gestos e o topo, atras da ilha.
+
+      maximum-scale=1 + user-scalable=no desligam o pinch zoom. Num SITE isso
+      seria errado - o WCAG 1.4.4 exige poder ampliar o texto ate 200%, e
+      bloquear zoom prejudica quem tem baixa visao. Aqui e diferente por dois
+      motivos: este app roda instalado em tela cheia, onde dar zoom desalinha a
+      barra fixa e a area segura sem nada para "voltar ao normal"; e o ajuste de
+      acessibilidade continua disponivel no nivel certo, que e o do sistema
+      (Ajustes > Tela e Brilho > Tamanho do Texto, ou o Zoom do iOS), valendo
+      para todos os apps em vez de so para este.
+    -->
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"
     />
     <meta name="description" content="Controle de gastos e orçamento por categoria" />
 

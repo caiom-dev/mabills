@@ -1,5 +1,49 @@
 @import 'tailwindcss';
 
+/* ---------------------------------------------------------------------------
+ * Tipografia
+ *
+ * Duas familias, com papeis separados:
+ *
+ *   Sora    - numeros e titulos. Geometrica, com altura-x generosa e zero
+ *             cortado; um valor em R$ 2.046,65 fica legivel de relance, que e
+ *             o unico jeito de ler dinheiro que importa.
+ *   SF Pro  - corpo e rotulos, via -apple-system. No iPhone e a fonte do
+ *             sistema: nao custa um byte, ja vem hinted para a tela do
+ *             aparelho e faz o app parecer nativo em vez de site.
+ *
+ * Self-host e obrigatorio: o app abre offline, e fonte do Google sumiria em
+ * modo aviao. Subset latin (24,7 KB por peso) cobre todo o portugues.
+ * -------------------------------------------------------------------------*/
+
+@font-face {
+  font-family: 'Sora';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/sora-400.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Sora';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/sora-600.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Sora';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/sora-700.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+FEFF, U+FFFD;
+}
+
 /**
  * Tokens de cor.
  *
@@ -37,6 +81,38 @@
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 
+  /* -----------------------------------------------------------------------
+   * Familias
+   * ---------------------------------------------------------------------*/
+  --font-display: 'Sora', system-ui, -apple-system, sans-serif;
+  --font-ui: -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', sans-serif;
+
+  /* -----------------------------------------------------------------------
+   * Movimento
+   *
+   * Uma curva so, em tres duracoes. O easing e expo-out: comeca rapido e
+   * desacelera longo, que e como objeto fisico para - diferente de bounce,
+   * que chama atencao para a animacao em vez de para o conteudo.
+   * ---------------------------------------------------------------------*/
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 150ms;
+  --dur-base: 250ms;
+  --dur-slow: 400ms;
+
+  /* -----------------------------------------------------------------------
+   * Elevacao
+   *
+   * Duas sombras empilhadas por nivel: uma curta e escura que ancora a borda,
+   * outra longa e difusa que da a distancia do plano. A sombra unica do
+   * Tailwind (0 4px 6px rgba(0,0,0,.1)) achata tudo no mesmo plano.
+   *
+   * A tinta vem do texto, nao de preto puro: sombra neutra sobre superficie
+   * quente suja a cor.
+   * ---------------------------------------------------------------------*/
+  --shadow-sm: 0 1px 2px rgb(11 11 11 / 0.04), 0 1px 3px rgb(11 11 11 / 0.03);
+  --shadow-md: 0 2px 4px rgb(11 11 11 / 0.04), 0 8px 24px -8px rgb(11 11 11 / 0.10);
+  --shadow-lg: 0 4px 8px rgb(11 11 11 / 0.05), 0 16px 48px -12px rgb(11 11 11 / 0.16);
+
   color-scheme: light;
 }
 
@@ -62,27 +138,100 @@
     --cat-7: #9085e9;
     --cat-8: #e66767;
 
+    /* No escuro a sombra e quase invisivel: a separacao entre camadas vem da
+       luminosidade da superficie (page #0d0d0d -> surface #1a1a19). A sombra
+       fica so para ancorar a borda do que flutua. */
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.30);
+    --shadow-md: 0 2px 8px rgb(0 0 0 / 0.40);
+    --shadow-lg: 0 8px 32px rgb(0 0 0 / 0.50);
+
     color-scheme: dark;
   }
 }
 
-* {
-  -webkit-tap-highlight-color: transparent;
+/* ---------------------------------------------------------------------------
+ * Base do documento
+ *
+ * TUDO que estiliza ELEMENTO (e não classe) precisa morar em @layer base.
+ *
+ * O motivo não é organização: em cascade layers, uma regra escrita fora de
+ * qualquer layer vence TODAS as layers, por mais específica que seja a outra.
+ * O Tailwind emite as utilities em @layer utilities — então uma regra solta
+ * como `button { color: inherit }` passava por cima de QUALQUER classe de cor
+ * aplicada a um botão, em todo o app.
+ *
+ * O sintoma foi o chip de categoria selecionado: fundo branco e texto herdando
+ * branco do pai, ilegível. Os não selecionados escapavam por acaso, porque
+ * herdar branco sobre fundo escuro continua legível.
+ * -------------------------------------------------------------------------*/
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+    /*
+     * Mata o zoom por toque duplo.
+     *
+     * 'manipulation' diz ao navegador que so scroll e pinch importam neste
+     * elemento - e como o pinch ja esta desligado no viewport, sobra so o
+     * scroll. De quebra, elimina a espera de ~300ms que o Safari fazia antes
+     * de disparar o clique, porque ele nao precisa mais aguardar para saber se
+     * vinha um segundo toque.
+     */
+    touch-action: manipulation;
+  }
+
+  html,
+  body {
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    /* Evita o efeito de "puxar a pagina" que denuncia que o app e web. */
+    overscroll-behavior-y: none;
+    /* Sem isto o iOS aumenta o texto sozinho ao girar para paisagem. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /*
+   * Segurar um rotulo nao seleciona texto nem abre a lupa.
+   *
+   * Em app nativo isso simplesmente nao acontece; num PWA acontece, e e um dos
+   * detalhes que denunciam que aquilo e uma pagina web. Campos de texto e
+   * valores monetarios ficam de fora: copiar um valor e util de verdade.
+   */
+  body {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  input,
+  textarea,
+  .tabular,
+  .money-hero {
+    -webkit-user-select: text;
+    user-select: text;
+  }
 }
 
-html,
-body {
-  background: var(--page);
-  color: var(--text-primary);
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  /* Evita o efeito de "puxar a pagina" que denuncia que o app e web. */
-  overscroll-behavior-y: none;
-}
+@layer base {
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
 
-body {
-  margin: 0;
-  min-height: 100dvh;
-  -webkit-font-smoothing: antialiased;
+  /*
+   * A faixa do notch / Dynamic Island.
+   *
+   * O index.html usa viewport-fit=cover com status bar black-translucent: os
+   * dois juntos entregam a tela INTEIRA ao app, area do notch inclusive. Sem
+   * este recuo o topo de toda tela nasce por baixo do relogio e da ilha - o
+   * titulo da pagina fica ilegivel num iPhone 14 Pro e acima.
+   *
+   * Fica no body, e nao em cada tela, para valer tambem para o Login, que e
+   * renderizado fora do <main>. box-sizing: border-box (preflight do Tailwind)
+   * mantem o recuo DENTRO dos 100dvh, sem criar rolagem de sobra.
+   */
+    padding-top: var(--safe-top);
+  }
 }
 
 /* Alinhamento vertical em colunas de numeros. NUNCA em numero grande isolado:
@@ -91,23 +240,121 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-input,
-button,
-select,
-textarea {
-  font: inherit;
-  color: inherit;
+/* ---------------------------------------------------------------------------
+ * Tipografia de display
+ *
+ * Tracking negativo cresce com o tamanho: a 14px o texto precisa de ar entre
+ * as letras, a 44px o mesmo espaco vira buraco. Por isso cada degrau da escala
+ * traz o seu proprio letter-spacing em vez de um valor global.
+ * -------------------------------------------------------------------------*/
+.display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
 }
 
-input[type='number']::-webkit-outer-spin-button,
-input[type='number']::-webkit-inner-spin-button {
-  appearance: none;
-  margin: 0;
+.display-sm {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
 }
 
-:focus-visible {
-  outline: 2px solid var(--cat-1);
-  outline-offset: 2px;
+/* O numero que carrega a tela. clamp() porque a diferenca entre um iPhone SE e
+   um Pro Max e grande demais para um tamanho fixo servir aos dois. */
+.money-hero {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2.25rem, 11vw, 3rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Rotulo curto sobre o numero: caixa alta pede tracking positivo, senao as
+   letras colam. */
+.overline {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------------------
+ * Entrada em cascata
+ *
+ * Os cartoes da tela entram um apos o outro, 45ms entre eles. O olho le a
+ * ordem como hierarquia - o que aparece primeiro importa mais - e a espera
+ * pela rede deixa de parecer travamento.
+ *
+ * O deslocamento e de 8px: o suficiente para o movimento existir, pouco para
+ * nao virar espetaculo em toda abertura do app.
+ * -------------------------------------------------------------------------*/
+@keyframes mabills-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: mabills-rise var(--dur-base) var(--ease-out) backwards;
+}
+
+.rise-1 { animation-delay: 0ms; }
+.rise-2 { animation-delay: 45ms; }
+.rise-3 { animation-delay: 90ms; }
+.rise-4 { animation-delay: 135ms; }
+.rise-5 { animation-delay: 180ms; }
+.rise-6 { animation-delay: 225ms; }
+
+/* Resposta ao toque. No iPhone nao existe hover: o feedback precisa vir do
+   :active, e precisa ser imediato - 150ms de afundamento ja le como "recebi
+   seu toque". */
+.pressable {
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out);
+}
+
+.pressable:active {
+  transform: scale(0.975);
+}
+
+@layer base {
+  /* `color: inherit` aqui é o que evita o azul de link que o navegador dá a
+     controles. Dentro de @layer base ele continua fazendo isso, mas passa a
+     perder para qualquer classe de cor — que é o comportamento correto. */
+  input,
+  button,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--cat-1);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Seleciona texto com a cor do brand, nao com o azul do sistema. */
+  ::selection {
+    background: color-mix(in srgb, var(--cat-1) 24%, transparent);
+  }
 }
 
 @keyframes mabills-pulse {
@@ -127,6 +374,147 @@ input[type='number']::-webkit-inner-spin-button {
   to {
     transform: translateY(0);
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * Animação dos ícones
+ *
+ * Cada uma dura entre 350ms e 550ms e roda UMA vez, ao ícone virar o da aba
+ * ativa. O ponto não é enfeitar: é confirmar o toque com algo mais rico que
+ * uma troca de cor, e dar caráter ao app na única superfície que o usuário
+ * toca dezenas de vezes por dia.
+ *
+ * Tudo aqui é desligado pelo bloco de prefers-reduced-motion mais abaixo.
+ * -------------------------------------------------------------------------*/
+
+/* Traço que se desenha. pathLength não é usado aqui: 60 cobre com folga o
+   comprimento real dos paths deste grid de 24px. */
+@keyframes ico-draw {
+  from {
+    stroke-dasharray: 60;
+    stroke-dashoffset: 60;
+  }
+  to {
+    stroke-dasharray: 60;
+    stroke-dashoffset: 0;
+  }
+}
+
+.ico-draw {
+  animation: ico-draw 450ms var(--ease-out);
+}
+
+/* A porta da casa sobe do piso, depois que o contorno fechou. */
+@keyframes ico-door {
+  0%,
+  35% {
+    transform: translateY(5px);
+    opacity: 0;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.ico-door {
+  animation: ico-door 420ms var(--ease-out);
+}
+
+/* Os arcos da rosca entram girando um quarto de volta. */
+@keyframes ico-spin {
+  from {
+    transform: rotate(-90deg);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.ico-spin {
+  animation: ico-spin 500ms var(--ease-out);
+  transform-origin: 12px 12px;
+}
+
+/* As duas setas da troca, em sentidos opostos. */
+@keyframes ico-slide-r {
+  from {
+    transform: translateX(-6px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes ico-slide-l {
+  from {
+    transform: translateX(6px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.ico-slide-r {
+  animation: ico-slide-r 380ms var(--ease-out);
+}
+
+.ico-slide-l {
+  animation: ico-slide-l 380ms var(--ease-out) 60ms backwards;
+}
+
+/* O ponteiro do medidor varre da esquerda até parar. Overshoot NÃO: ponteiro
+   que passa do ponto e volta é relógio de brinquedo. */
+@keyframes ico-sweep {
+  from {
+    transform: rotate(-88deg);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.ico-sweep {
+  animation: ico-sweep 550ms var(--ease-out);
+}
+
+/* Os cursores correm até a posição, o de baixo logo atrás do de cima. */
+@keyframes ico-settle {
+  from {
+    transform: translateX(-7px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.ico-settle circle {
+  animation: ico-settle 420ms var(--ease-out) backwards;
+}
+
+.ico-settle circle:nth-child(2) {
+  animation-delay: 70ms;
+}
+
+/* Rotação contínua da sincronização. Linear de propósito: aqui a animação
+   comunica "ainda trabalhando", e qualquer easing faria parecer que engasga. */
+@keyframes ico-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ico-rotate {
+  animation: ico-rotate 900ms linear infinite;
+  transform-origin: center;
 }
 
 @media (prefers-reduced-motion: reduce) {

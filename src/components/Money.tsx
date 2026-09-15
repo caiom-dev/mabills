@@ -7,9 +7,9 @@ const SIZES: Record<Size, string> = {
   sm: 'text-sm',
   md: 'text-base',
   lg: 'text-2xl font-semibold',
-  // Numero heroi: >= 48px e figuras PROPORCIONAIS. tabular-nums aqui deixaria
-  // "121" com aparencia solta.
-  hero: 'text-5xl font-semibold tracking-tight',
+  // Numero heroi: .money-hero traz familia de display, tamanho fluido e o
+  // tracking negativo que so faz sentido nesse corpo.
+  hero: 'money-hero',
 }
 
 const TONES: Record<Tone, string> = {
